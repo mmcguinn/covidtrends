@@ -211,6 +211,11 @@ let app = new Vue({
       } else if (urlParameters.has('location')) {
         this.selectedCountries = urlParameters.getAll('location').map(e => Object.keys(renames).includes(e) ? renames[e] : e);
       }
+      
+      if (urlParameters.has('perCapita')) {
+        let perCapita = urlParameters.get('perCapita');
+        this.perCapita = (perCapita == 'true');
+      }
 
       if (urlParameters.has('trendline')) {
         let showTrendLine = urlParameters.get('trendline');
@@ -961,6 +966,10 @@ let app = new Vue({
         }
       }
 
+      if (this.perCapita) {
+        queryUrl.append('perCapita', this.perCapita);
+      }
+
       if (!this.showTrendLine) {
         queryUrl.append('trendline', this.showTrendLine);
       } else if (this.doublingTime != 2) {
@@ -1063,12 +1072,13 @@ let app = new Vue({
     },
 
     layout() {
+      let labelSuffix = this.perCapita ? ' per Million' : '';
       return {
-        title: 'Trajectory of ' + this.selectedRegion + ' COVID-19 '+ this.selectedData + ' (' + this.formatDate(this.dates[this.day - 1]) + ')',
+        title: 'Trajectory of ' + this.selectedRegion + ' COVID-19 '+ this.selectedData + labelSuffix + ' (' + this.formatDate(this.dates[this.day - 1]) + ')',
         showlegend: false,
         autorange: false,
           xaxis: {
-          title: 'Total ' + this.selectedData + (this.perCapita ? ' per Million' : ''),
+          title: 'Total ' + this.selectedData + labelSuffix,
           type: this.selectedScale == 'Logarithmic Scale' ? 'log' : 'linear',
           range: this.selectedScale == 'Logarithmic Scale' ? this.logxrange : this.linearxrange,
           titlefont: {
@@ -1077,7 +1087,7 @@ let app = new Vue({
           },
         },
         yaxis: {
-          title: 'New ' + this.selectedData + (this.perCapita ? ' per Million' : '') + ' (in the Past Week)',
+          title: 'New ' + this.selectedData + labelSuffix + ' (in the Past Week)',
           type: this.selectedScale == 'Logarithmic Scale' ? 'log' : 'linear',
           range: this.selectedScale == 'Logarithmic Scale' ? this.logyrange : this.linearyrange,
           titlefont: {
@@ -1098,6 +1108,14 @@ let app = new Vue({
     traces() {
 
       let showDailyMarkers = this.filteredCovidData.length <= 2;
+      let dataFormatString = '';
+      let labelSuffix = this.perCapita ? ' per Million' : '';
+      
+      if (this.perCapita) {
+        dataFormatString = ',.2f';
+      } else {
+        dataFormatString = ',';
+      }
 
       // draws grey lines (line plot for each location)
       let trace1 = this.filteredCovidData.map((e,i) => ({
@@ -1116,7 +1134,7 @@ let app = new Vue({
           color: 'rgba(0,0,0,0.15)'
         },
         hoverinfo:'x+y+text',
-        hovertemplate: '%{text}<br>Total ' + this.selectedData + (this.perCapita ? ' per Million' : '') + ': %{x:0f,}<br>Weekly ' + this.selectedData + (this.perCapita ? ' per Million' : '') + ': %{y:0f,}<extra></extra>',
+        hovertemplate: '%{text}<br>Total ' + this.selectedData + labelSuffix + ': %{x:' + dataFormatString + '}<br>Weekly ' + this.selectedData + labelSuffix + ': %{y:' + dataFormatString + '}<extra></extra>',
       })
       );
 
@@ -1133,13 +1151,13 @@ let app = new Vue({
           size: 6,
           color: 'rgba(254, 52, 110, 1)'
         },
-        hovertemplate: '%{data.text}<br>Total ' + this.selectedData + (this.perCapita ? ' per Million' : '') +': %{x:.0f,}<br>Weekly ' + this.selectedData + (this.perCapita ? ' per Million' : '') + ': %{y:0f,}<extra></extra>',
+        hovertemplate: '%{data.text}<br>Total ' + this.selectedData + labelSuffix +': %{x:' + dataFormatString + '}<br>Weekly ' + this.selectedData + labelSuffix + ': %{y:' + dataFormatString + '}<extra></extra>',
 
        })
       );
 
       if (this.showTrendLine) {
-        let cases = [1, 10000000];
+        let cases = [0.001, 10000000];
 
         let trace3 = [{
           x: cases,
@@ -1219,7 +1237,10 @@ let app = new Vue({
     },
 
     logxrange() {
-      return [1, Math.ceil(Math.log10(1.5 * this.xmax))]
+      return [
+        Math.min(1, Math.floor(Math.log10(this.xmin))), 
+        Math.ceil(Math.log10(1.5 * this.xmax))
+      ];
     },
 
     linearxrange() {
@@ -1227,12 +1248,10 @@ let app = new Vue({
     },
 
     logyrange() {
-
-      if (this.ymin < 10) { // shift ymin on log scale if fewer than 10 cases
-        return [0, Math.ceil(Math.log10(1.5 * this.ymax))]
-      } else {
-        return [1, Math.ceil(Math.log10(1.5 * this.ymax))]
-      }
+      return [
+        Math.min(1, Math.floor(Math.log10(this.ymin))),
+        Math.ceil(Math.log10(1.5 * this.ymax))
+      ];
     },
 
     linearyrange() {
