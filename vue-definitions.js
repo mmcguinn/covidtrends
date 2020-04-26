@@ -160,7 +160,7 @@ let app = new Vue({
   el: '#root',
 
   mounted() {
-    this.pullData(this.selectedData, this.selectedRegion);
+    this.pullData(this.selectedData, this.selectedRegion, this.perCapita);
   },
 
   created: function() {
@@ -247,14 +247,21 @@ let app = new Vue({
   watch: {
     selectedData() {
       if (!this.firstLoad) {
-        this.pullData(this.selectedData, this.selectedRegion, /*updateSelectedCountries*/ false);
+        this.pullData(this.selectedData, this.selectedRegion, this.perCapita, /*updateSelectedCountries*/ false);
       }
       this.searchField = '';
     },
 
     selectedRegion() {
       if (!this.firstLoad) {
-        this.pullData(this.selectedData, this.selectedRegion, /*updateSelectedCountries*/ true);
+        this.pullData(this.selectedData, this.selectedRegion, this.perCapita, /*updateSelectedCountries*/ true);
+      }
+      this.searchField = '';
+    },
+    
+    perCapita() {
+      if (!this.firstLoad) {
+        this.pullData(this.selectedData, this.selectedRegion, this.perCapita, /*updateSelectedCountries*/ true);
       }
       this.searchField = '';
     },
@@ -317,7 +324,7 @@ let app = new Vue({
       return Math.min.apply(Math, par);
     },
 
-    pullData(selectedData, selectedRegion, updateSelectedCountries = true) {
+    pullData(selectedData, selectedRegion, perCapita, updateSelectedCountries = true) {
 
       if (selectedRegion != 'US') {
         let url;
@@ -328,11 +335,11 @@ let app = new Vue({
         } else {
           return;
         }
-        Plotly.d3.csv(url, (data) => this.processData(data, selectedRegion, updateSelectedCountries));
+        Plotly.d3.csv(url, (data) => this.processData(data, selectedRegion, perCapita, updateSelectedCountries));
       } else { // selectedRegion == 'US'
         const type = (selectedData == 'Reported Deaths') ? 'deaths' : 'cases'
         const url = 'https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv';
-        Plotly.d3.csv(url, (data) => this.processData(this.preprocessNYTData(data, type), selectedRegion, updateSelectedCountries));
+        Plotly.d3.csv(url, (data) => this.processData(this.preprocessNYTData(data, type), selectedRegion, perCapita, updateSelectedCountries));
       }
     },
 
@@ -377,7 +384,7 @@ let app = new Vue({
           .map(e => Object.assign({}, e, {region: e['Province/State']}));
     },
 
-    processData(data, selectedRegion, updateSelectedCountries) {
+    processData(data, selectedRegion, perCapita, updateSelectedCountries) {
       let dates = Object.keys(data[0]).slice(4);
       this.dates = dates;
       this.day = this.dates.length;
@@ -402,12 +409,368 @@ let app = new Vue({
         .filter(e => !regionsToPullToCountryLevel.includes(e.region)); // also filter our Hong Kong and Macau as subregions of Mainland China
       }
 
-      let exclusions = ['Cruise Ship', 'Diamond Princess'];
+      let exclusions = ['Cruise Ship', 'Diamond Princess', 'MS Zaandam'];
 
       let renames = {
         'Taiwan*': 'Taiwan',
         'Korea, South': 'South Korea',
         'China': 'China (Mainland)'
+      };
+      
+      let regionSizes = {
+        'World': { // Source https://www.worldometers.info/world-population/population-by-country/
+          'Afghanistan':38928346,
+        	'Albania':2877797,
+        	'Algeria':43851044,
+        	'American Samoa':55191,
+        	'Andorra':77265,
+        	'Angola':32866272,
+        	'Anguilla':15003,
+        	'Antigua and Barbuda':97929,
+        	'Argentina':45195774,
+        	'Armenia':2963243,
+        	'Aruba':106766,
+        	'Australia':25499884,
+        	'Austria':9006398,
+        	'Azerbaijan':10139177,
+        	'Bahamas':393244,
+        	'Bahrain':1701575,
+        	'Bangladesh':164689383,
+        	'Barbados':287375,
+        	'Belarus':9449323,
+        	'Belgium':11589623,
+        	'Belize':397628,
+        	'Benin':12123200,
+        	'Bermuda':62278,
+        	'Bhutan':771608,
+        	'Bolivia':11673021,
+        	'Bosnia and Herzegovina':3280819,
+        	'Botswana':2351627,
+        	'Brazil':212559417,
+        	'British Virgin Islands':30231,
+        	'Brunei':437479,
+        	'Bulgaria':6948445,
+        	'Burkina Faso':20903273,
+        	'Burundi':11890784,
+        	'Cabo Verde':555987,
+        	'Cambodia':16718965,
+        	'Cameroon':26545863,
+        	'Canada':37742154,
+        	'Caribbean Netherlands':26223,
+        	'Cayman Islands':65722,
+        	'Central African Republic':4829767,
+        	'Chad':16425864,
+        	'Channel Islands':173863,
+        	'Chile':19116201,
+        	'China (Mainland)':1439323776,
+        	'Colombia':50882891,
+        	'Comoros':869601,
+        	'Congo':5518087,
+        	'Cook Islands':17564,
+        	'Costa Rica':5094118,
+        	'Croatia':4105267,
+        	'Cuba':11326616,
+        	'Curaçao':164093,
+        	'Cyprus':1207359,
+        	'Czechia':10708981,
+        	'Cote d\'Ivoire':26378274,
+        	'Denmark':5792202,
+        	'Djibouti':988000,
+        	'Dominica':71986,
+        	'Dominican Republic':10847910,
+        	'DR Congo':89561403,
+        	'Ecuador':17643054,
+        	'Egypt':102334404,
+        	'El Salvador':6486205,
+        	'Equatorial Guinea':1402985,
+        	'Eritrea':3546421,
+        	'Estonia':1326535,
+        	'Eswatini':1160164,
+        	'Ethiopia':114963588,
+        	'Faeroe Islands':48863,
+        	'Falkland Islands':3480,
+        	'Fiji':896445,
+        	'Finland':5540720,
+        	'France':65273511,
+        	'French Guiana':298682,
+        	'French Polynesia':280908,
+        	'Gabon':2225734,
+        	'Gambia':2416668,
+        	'Georgia':3989167,
+        	'Germany':83783942,
+        	'Ghana':31072940,
+        	'Gibraltar':33691,
+        	'Greece':10423054,
+        	'Greenland':56770,
+        	'Grenada':112523,
+        	'Guadeloupe':400124,
+        	'Guam':168775,
+        	'Guatemala':17915568,
+        	'Guinea':13132795,
+        	'Guinea-Bissau':1968001,
+        	'Guyana':786552,
+        	'Haiti':11402528,
+        	'Holy See':801,
+        	'Honduras':9904607,
+        	'Hong Kong':7496981,
+        	'Hungary':9660351,
+        	'Iceland':341243,
+        	'India':1380004385,
+        	'Indonesia':273523615,
+        	'Iran':83992949,
+        	'Iraq':40222493,
+        	'Ireland':4937786,
+        	'Isle of Man':85033,
+        	'Israel':8655535,
+        	'Italy':60461826,
+        	'Jamaica':2961167,
+        	'Japan':126476461,
+        	'Jordan':10203134,
+        	'Kazakhstan':18776707,
+        	'Kenya':53771296,
+        	'Kiribati':119449,
+          'Kosovo': 1810366, // Pulled from countrymeters.info/en/Kosovo
+        	'Kuwait':4270571,
+        	'Kyrgyzstan':6524195,
+        	'Laos':7275560,
+        	'Latvia':1886198,
+        	'Lebanon':6825445,
+        	'Lesotho':2142249,
+        	'Liberia':5057681,
+        	'Libya':6871292,
+        	'Liechtenstein':38128,
+        	'Lithuania':2722289,
+        	'Luxembourg':625978,
+        	'Macau':649335,
+        	'Madagascar':27691018,
+        	'Malawi':19129952,
+        	'Malaysia':32365999,
+        	'Maldives':540544,
+        	'Mali':20250833,
+        	'Malta':441543,
+        	'Marshall Islands':59190,
+        	'Martinique':375265,
+        	'Mauritania':4649658,
+        	'Mauritius':1271768,
+        	'Mayotte':272815,
+        	'Mexico':128932753,
+        	'Micronesia':115023,
+        	'Moldova':4033963,
+        	'Monaco':39242,
+        	'Mongolia':3278290,
+        	'Montenegro':628066,
+        	'Montserrat':4992,
+        	'Morocco':36910560,
+        	'Mozambique':31255435,
+        	'Burma':54409800,
+        	'Namibia':2540905,
+        	'Nauru':10824,
+        	'Nepal':29136808,
+        	'Netherlands':17134872,
+        	'New Caledonia':285498,
+        	'New Zealand':4822233,
+        	'Nicaragua':6624554,
+        	'Niger':24206644,
+        	'Nigeria':206139589,
+        	'Niue':1626,
+        	'North Korea':25778816,
+        	'North Macedonia':2083374,
+        	'Northern Mariana Islands':57559,
+        	'Norway':5421241,
+        	'Oman':5106626,
+        	'Pakistan':220892340,
+        	'Palau':18094,
+        	'Panama':4314767,
+        	'Papua New Guinea':8947024,
+        	'Paraguay':7132538,
+        	'Peru':32971854,
+        	'Philippines':109581078,
+        	'Poland':37846611,
+        	'Portugal':10196709,
+        	'Puerto Rico':2860853,
+        	'Qatar':2881053,
+        	'Romania':19237691,
+        	'Russia':145934462,
+        	'Rwanda':12952218,
+        	'Réunion':895312,
+        	'Saint Barthelemy':9877,
+        	'Saint Helena':6077,
+        	'Saint Kitts and Nevis':53199,
+        	'Saint Lucia':183627,
+        	'Saint Martin':38666,
+        	'Saint Pierre & Miquelon':5794,
+        	'Samoa':198414,
+        	'San Marino':33931,
+        	'Sao Tome and Principe':219159,
+        	'Saudi Arabia':34813871,
+        	'Senegal':16743927,
+        	'Serbia':8737371,
+        	'Seychelles':98347,
+        	'Sierra Leone':7976983,
+        	'Singapore':5850342,
+        	'Sint Maarten':42876,
+        	'Slovakia':5459642,
+        	'Slovenia':2078938,
+        	'Solomon Islands':686884,
+        	'Somalia':15893222,
+        	'South Africa':59308690,
+        	'South Korea':51269185,
+        	'South Sudan':11193725,
+        	'Spain':46754778,
+        	'Sri Lanka':21413249,
+        	'Saint Vincent and the Grenadines':110940,
+        	'West Bank and Gaza':5101414,
+        	'Sudan':43849260,
+        	'Suriname':586632,
+        	'Sweden':10099265,
+        	'Switzerland':8654622,
+        	'Syria':17500658,
+        	'Taiwan':23816775,
+        	'Tajikistan':9537645,
+        	'Tanzania':59734218,
+        	'Thailand':69799978,
+        	'Timor-Leste':1318445,
+        	'Togo':8278724,
+        	'Tokelau':1357,
+        	'Tonga':105695,
+        	'Trinidad and Tobago':1399488,
+        	'Tunisia':11818619,
+        	'Turkey':84339067,
+        	'Turkmenistan':6031200,
+        	'Turks and Caicos':38717,
+        	'Tuvalu':11792,
+        	'U.S. Virgin Islands':104425,
+        	'Uganda':45741007,
+        	'Ukraine':43733762,
+        	'United Arab Emirates':9890402,
+        	'United Kingdom':67886011,
+        	'US':331002651,
+        	'Uruguay':3473730,
+        	'Uzbekistan':33469203,
+        	'Vanuatu':307145,
+        	'Venezuela':28435940,
+        	'Vietnam':97338579,
+        	'Wallis & Futuna':11239,
+        	'Western Sahara':597339,
+        	'Yemen':29825964,
+        	'Zambia':18383955,
+        	'Zimbabwe':14862924
+        },
+        'US': { // Source: https://www.census.gov/newsroom/press-kits/2019/national-state-estimates.html
+          'Alabama': 4903185,
+          'Alaska': 731545,
+          'Arizona': 7278717,
+          'Arkansas': 3017804,
+          'California': 39512223,
+          'Colorado': 5758736,
+          'Connecticut': 3565287,
+          'Delaware': 973764,
+          'District of Columbia': 705749,
+          'Florida': 21477737,
+          'Georgia': 10617423,
+          'Hawaii': 1415872,
+          'Idaho': 1787065,
+          'Illinois': 12671821,
+          'Indiana': 6732219,
+          'Iowa': 3155070,
+          'Kansas': 2913314,
+          'Kentucky': 4467673,
+          'Louisiana': 4648794,
+          'Maine': 1344212,
+          'Maryland': 6045680,
+          'Massachusetts': 6892503,
+          'Michigan': 9986857,
+          'Minnesota': 5639632,
+          'Mississippi': 2976149,
+          'Missouri': 6137428,
+          'Montana': 1068778,
+          'Nebraska': 1934408,
+          'Nevada': 3080156,
+          'New Hampshire': 1359711,
+          'New Jersey': 8882190,
+          'New Mexico': 2096829,
+          'New York': 19453561,
+          'North Carolina': 10488084,
+          'North Dakota': 762062,
+          'Ohio': 11689100,
+          'Oklahoma': 3956971,
+          'Oregon': 4217737,
+          'Pennsylvania': 12801989,
+          'Rhode Island': 1059361,
+          'South Carolina': 5148714,
+          'South Dakota': 884659,
+          'Tennessee': 6829174,
+          'Texas': 28995881,
+          'Utah': 3205958,
+          'Vermont': 623989,
+          'Virginia': 8535519,
+          'Washington': 7614893,
+          'West Virginia': 1792147,
+          'Wisconsin': 5822434,
+          'Wyoming': 578759,
+          'Puerto Rico': 3193694,
+          'Virgin Islands': 104452, // Pulled from https://www.worldometers.info/world-population/united-states-virgin-islands-population/
+          'Guam': 168510, // Pulled from https://www.worldometers.info/world-population/guam-population/
+          'Northern Mariana Islands': 57498// Pulled from https://www.worldometers.info/world-population/northern-mariana-islands-population/
+        },
+        'China': { // 2018 from http://data.stats.gov.cn/english/easyquery.htm?cn=E0103
+          'Beijing': 21540000,
+          'Tianjin': 15600000,
+          'Hebei': 75560000,
+          'Shanxi': 37180000,
+          'Inner Mongolia': 25340000,
+          'Liaoning': 43590000,
+          'Jilin': 27040000,
+          'Heilongjiang': 37730000,
+          'Shanghai': 24240000,
+          'Jiangsu': 80510000,
+          'Zhejiang': 57370000,
+          'Anhui': 63240000,
+          'Fujian': 39410000,
+          'Jiangxi': 46480000,
+          'Shandong': 100470000,
+          'Henan': 96050000,
+          'Hubei': 59170000,
+          'Hunan': 68990000,
+          'Guangdong': 11346000,
+          'Guangxi': 49260000,
+          'Hainan': 9340000,
+          'Chongqing': 31020000,
+          'Sichuan': 83410000,
+          'Guizhou': 36000000,
+          'Yunnan': 48300000,
+          'Tibet': 3440000,
+          'Shaanxi': 38640000,
+          'Gansu': 26370000,
+          'Qinghai': 6030000,
+          'Ningxia': 6880000,
+          'Xinjiang': 24870000
+        },
+        'Australia': { // Sep 2019 from https://www.abs.gov.au/AUSSTATS/abs@.nsf/DetailsPage/3101.0Sep%202019?OpenDocument
+          'New South Wales': 8117976,
+          'Victoria': 6629870,
+          'Queensland': 5115451,
+          'South Australia': 1756494,
+          'Western Australia': 2630557,
+          'Tasmania': 535500,
+          'Northern Territory': 245562,
+          'Australian Capital Territory': 428060,
+        },
+        'Canada': { // Q1 2020 from Statistics Canada. https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1710000901
+          'Newfoundland and Labrador': 521365,
+          'Prince Edward Island': 158158,
+          'Nova Scotia': 977457,
+          'New Brunswick': 779993,
+          'Quebec': 8537674,
+          'Ontario': 14711827,
+          'Manitoba': 1377517,
+          'Saskatchewan': 1181666,
+          'Alberta': 4413146,
+          'British Columbia': 5110917,
+          'Yukon': 41078,
+          'Northwest Territories': 44904,
+          'Nunavut': 39097
+        }
       };
 
       let covidData = [];
@@ -415,28 +778,46 @@ let app = new Vue({
 
         if (!exclusions.includes(row.region)) {
           const arr = [];
-          for (let date of dates) {
-            arr.push(row[date]);
-          }
-          let slope = arr.map((e,i,a) => e - a[i - this.lookbackTime]);
+          let minCases = this.minCasesInCountry
           let region = row.region
-
+          
           if (Object.keys(renames).includes(region)) {
             region = renames[region];
           }
+          
+          if (perCapita) {
+            if (!Object.keys(regionSizes).includes(selectedRegion) || 
+                !Object.keys(regionSizes[selectedRegion]).includes(region)) {
+              console.log('region not found: ', selectedRegion, '[', region, ']');
+              continue;
+            }
+            let regionSize = regionSizes[selectedRegion][region];
+            // Adjust the minimum case count for per capita
+            minCases /= regionSize / 1000000;
+            
+            for (let date of dates) {
+              arr.push(row[date] / (regionSize / 1000000));
+            }
+          } else {
+            for (let date of dates) {
+              arr.push(row[date]);
+            }
+          }
+          let slope = arr.map((e,i,a) => e - a[i - this.lookbackTime]);
 
-          const cases = arr.map(e => e >= this.minCasesInCountry ? e : NaN);
+          const cases = arr.map(e => e >= minCases ? e : NaN);
           covidData.push({
             country: region,
             cases,
-            slope: slope.map((e,i) => arr[i] >= this.minCasesInCountry ? e : NaN),
-            maxCases: this.myMax(...cases)
+            slope: slope.map((e,i) => arr[i] >= minCases ? e : NaN),
+            maxCases: this.myMax(...cases),
+            aboveMinCases: this.myMax(...cases) > minCases
           });
 
         }
       }
 
-      this.covidData = covidData.filter(e => e.maxCases > this.minCasesInCountry);
+      this.covidData = covidData.filter(e => e.aboveMinCases);
       this.countries = this.covidData.map(e => e.country).sort();
       this.visibleCountries = this.countries;
       const topCountries = this.covidData.sort((a, b) => b.maxCases - a.maxCases).slice(0, 9).map(e => e.country);
@@ -687,7 +1068,7 @@ let app = new Vue({
         showlegend: false,
         autorange: false,
           xaxis: {
-          title: 'Total ' + this.selectedData,
+          title: 'Total ' + this.selectedData + (this.perCapita ? ' per Million' : ''),
           type: this.selectedScale == 'Logarithmic Scale' ? 'log' : 'linear',
           range: this.selectedScale == 'Logarithmic Scale' ? this.logxrange : this.linearxrange,
           titlefont: {
@@ -696,7 +1077,7 @@ let app = new Vue({
           },
         },
         yaxis: {
-          title: 'New ' + this.selectedData + ' (in the Past Week)',
+          title: 'New ' + this.selectedData + (this.perCapita ? ' per Million' : '') + ' (in the Past Week)',
           type: this.selectedScale == 'Logarithmic Scale' ? 'log' : 'linear',
           range: this.selectedScale == 'Logarithmic Scale' ? this.logyrange : this.linearyrange,
           titlefont: {
@@ -735,7 +1116,7 @@ let app = new Vue({
           color: 'rgba(0,0,0,0.15)'
         },
         hoverinfo:'x+y+text',
-        hovertemplate: '%{text}<br>Total ' + this.selectedData +': %{x:,}<br>Weekly ' + this.selectedData +': %{y:,}<extra></extra>',
+        hovertemplate: '%{text}<br>Total ' + this.selectedData + (this.perCapita ? ' per Million' : '') + ': %{x:0f,}<br>Weekly ' + this.selectedData + (this.perCapita ? ' per Million' : '') + ': %{y:0f,}<extra></extra>',
       })
       );
 
@@ -752,7 +1133,7 @@ let app = new Vue({
           size: 6,
           color: 'rgba(254, 52, 110, 1)'
         },
-        hovertemplate: '%{data.text}<br>Total ' + this.selectedData +': %{x:,}<br>Weekly ' + this.selectedData +': %{y:,}<extra></extra>',
+        hovertemplate: '%{data.text}<br>Total ' + this.selectedData + (this.perCapita ? ' per Million' : '') +': %{x:.0f,}<br>Weekly ' + this.selectedData + (this.perCapita ? ' per Million' : '') + ': %{y:0f,}<extra></extra>',
 
        })
       );
@@ -802,6 +1183,7 @@ let app = new Vue({
           selectedData: this.selectedData,
           selectedRegion: this.selectedRegion,
           selectedScale: this.selectedScale,
+          perCapita: this.perCapita,
           showLabels: this.showLabels,
           showTrendLine: this.showTrendLine,
           doublingTime: this.doublingTime,
@@ -934,6 +1316,8 @@ let app = new Vue({
     visibleCountries: [],
 
     isHidden: true,
+    
+    perCapita: false,
 
     showLabels: true,
 
